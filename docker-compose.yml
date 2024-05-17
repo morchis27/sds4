@@ -32,6 +32,7 @@ services:
             - sds4
         expose:
             - 9000
+        entrypoint: ["docker/php/init_script.sh"]
 
     web:
         image: nginx:latest

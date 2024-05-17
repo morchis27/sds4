@@ -14,4 +14,3 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 RUN cp /usr/local/etc/php/php.ini-development /usr/local/etc/php/php.ini
 
 EXPOSE 9000
-CMD ["php-fpm"]
