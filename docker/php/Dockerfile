@@ -12,5 +12,6 @@ RUN docker-php-ext-install -j$(nproc) mbstring pgsql pdo_pgsql zip
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN cp /usr/local/etc/php/php.ini-development /usr/local/etc/php/php.ini
+RUN composer global require phpunit/phpunit
 
 EXPOSE 9000

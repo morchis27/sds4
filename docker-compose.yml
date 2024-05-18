@@ -36,7 +36,7 @@ services:
 
     web:
         image: nginx:latest
-        container_name: ${APP_NAME}_web
+        container_name: sds4_web
         ports:
             - "80:80"
         volumes:
