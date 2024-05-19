@@ -7,3 +7,9 @@ composer install
 php artisan migrate
 
 supervisord -c /etc/supervisor/supervisord.conf
+
+echo "@"
+echo "@"
+echo "Hurray, script finished!!! You can now use the API"
+echo "@"
+echo "@"

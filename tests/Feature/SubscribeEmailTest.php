@@ -45,7 +45,7 @@ class SubscribeEmailTest extends TestCase
         ];
 
         $response = $this->call('POST', '/api/subscribe', $formData);
-        $response->assertStatus(409);
+        $response->assertStatus(400);
     }
 
     public function test_the_subscription_returns_conflict_on_subscribing_existing_email(): void
