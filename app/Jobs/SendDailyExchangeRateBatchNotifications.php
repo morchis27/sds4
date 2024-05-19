@@ -2,10 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Enum\Currencies;
 use App\Models\Subscriber;
 use App\Notifications\DailyExchangeRateNotification;
-use App\Service\ExchangeService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,19 +17,18 @@ class SendDailyExchangeRateBatchNotifications implements ShouldQueue
     /** @var Subscriber[] $subscribers */
     protected array $subscribers;
 
-    protected ExchangeService $exchangeRateService;
+    private float $exchangeRate;
 
-    public function __construct(array $subscribers)
+    public function __construct(array $subscribers, float $exchangeRate)
     {
         $this->subscribers = $subscribers;
-        $this->exchangeRateService = new ExchangeService(Currencies::USD, [Currencies::UAH]);
+        $this->exchangeRate = $exchangeRate;
     }
 
     public function handle(): void
     {
-        $exchangeRate = $this->exchangeRateService->getExchangeRate();
-        foreach ($this->subscribers as $subscribers) {
-            $subscribers->notify(new DailyExchangeRateNotification($exchangeRate));
+        foreach ($this->subscribers as $subscriber) {
+            $subscriber->notify(new DailyExchangeRateNotification($this->exchangeRate));
         }
     }
 }

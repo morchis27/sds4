@@ -2,30 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\Subscribed;
+use App\Exceptions\AlreadyExistsException;
 use App\Http\Requests\StoreSubscriberRequest;
 use App\Models\Subscriber;
+use App\Service\Subscription\SubscriptionService;
+use Exception;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class EmailController extends Controller
+class SubscriptionController extends Controller
 {
+    /**
+     * @throws AlreadyExistsException
+     * @throws Exception
+     */
     public function subscribe(StoreSubscriberRequest $request): JsonResponse
     {
         $email = $request->get('email');
-
         $subscriber = Subscriber::where('email', $email)->first();
-
-        if ($subscriber) {
-            return $this->errorResponse(409);
+        if($subscriber) {
+            throw new AlreadyExistsException();
         }
 
-        $subscriber = Subscriber::create([
-            'email' => $email,
-        ]);
+        $subscriptionService = new SubscriptionService();
 
-        event(new Subscribed($subscriber));
+        $subscriptionService->subscribe($email);
 
         return $this->successResponse(null, 200);
     }
@@ -45,5 +47,4 @@ class EmailController extends Controller
 
         return view('auth/email-verified');
     }
-
 }

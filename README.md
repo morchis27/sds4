@@ -1,59 +1,44 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SDS4 app
 
-## About 
+Это приложение написано на PHP используя фреймворк Laravel. В качестве базы данных был использован PostgreSQL, почта отправляется через аккаунт гугла.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+# TL; DR;
+Для того что-бы достучаться до контейнера через gses2.app нужно добавить его в файле hosts с маппингом на локалхост
+Для подьема контейнеров используйте docker compose up и обязательно дождитесь пока образ полностью соберется(первый раз композеру надо все скачать)
+`.env` - енв обычно не должен быть в репозитории, но так как это учебный проект не вижу смысла его скрывать.
+в `.env` файле есть настройки смтп для того что-бы отправлять имейлы(пароль неактивен) и поле `SHOULD_BE_VERIFIED` которое задает нужно ли человеку подтверждать почту что-бы мочь получить рассылку.
+Добавлены Feature Test-ы, прогнать их можно командой `php artisan test` внтури контейнера `app`
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Currency Conversion Rate USD -> UAH
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Был создан эндопинт /rate в группе /api по которому нам возращается численное значение курса используя сторонний сервис https://api.apilayer.com для получения курса доллара к гривне на текущий момент.
+Эндпоинт выглядит следующим образом:
+```sh
+Route::get('/rate', [CurrencyExchangeRateController::class, 'getExchangeRate']);
+```
+В контроллере мы вытягиваем из сервис провайдера обьект сервиса `CurrencyExchangeRateService`
+В самом сервисе мы также получаем через иньекцию зависимостей `ApiLayerCurrencyExchangeRateRepository`, видить байндинги можно в `App\Providers\CurrencyExchangeRateServiceProvider`. По большому счету интерфейс репозитория в таком небольшом приложении не нужен, можно было обойтись без уровня абстракции и сразу отдавать репозиторий напрямую, но реализованый подход облегчает дальнейшую разработку приложения в реальном мире, дая четкий интерфейс для репозитория если нам например нужно будет создать еще выборку курса доллара из файла.
+В самом репозитории реализован метод `getCurrentRate()` который принимает себе по контракту два параметра 1)какую валюту с 2)какой мы хотим сравнить. Получаем `$url` для подключение к стороннему сервису, дергаем его, получаем ответ, если сервер не отвечает то нам выкидывается `ConnectionException`, он хендлится в `bootstrap/app.php` где возвращается 400 ответ как прописано в документации. Дальше если мы получили ответ но он не такой каким мы его ожидаем, мы возвращаем `MalformedApiResponseException` которая тоже выдает нам 400 ответ как просят в доке. Если все прошло гладко возвращается флоат в сервис, на этом этапе можно добавлят какую-то бизнес логику типа округления или сохранение в кеш или базу. В нашем случае ответ просто форвардится дальше в контроллер в контроллере мы заворачиваем ответ в обертку, сетим ему статус (200) и отдаем юзеру.
 
-## Learning Laravel
+## Daily Currency Cоnversion Rate Subscription
+Был создан эндопинт /subscribe в группе /api по которому нам возращается пустой ответ со статусом 200 либо ошибка
+Эндпоинт выглядит следующим образом:
+```sh
+Route::post('/subscribe', [SubscriptionController::class, 'subscribe']);
+```
+В контроллере мы забираем реквест который нам прилетел, сам реквест валидирует имейл на то что он собственно является имейлом, если имейл не является им, кидается ошибка `ValidationException` статус которой 400. В документации небыло прописано что мы должны отдавать что-то кроме 200 и 409 статуса, но ни тот ни другой логически не подходит под непройденую валидацию, скорее всего такие форматы ответы просто не расписывались потому-что были опущены, я решил их добавить потому-что юзер может туда написать что угодно.
+После пройденой валидации, мы получаем `$email` и ищем по нему пользователся в базе, если такой пользователь существует мы кидаем ошибку `AlreadyExistsException` которая в `app.php` обрабатывается в пустой респонс со статусом 409, если все проходит гладко мы забираем с контейнера `SubscriptionService`, и вызываем у него метод `subscribe($email)` который подписывает нам юзера. Метод пытается создать подписчика, если у него это не получается то программа выкидывает эксепшн который я обрабатываю как 500(тут точно такая же ситуация как и с валидацией). Если все прошло на ура мы вызываем евент `Subscribed` который принимает в себя инстанс `Subscriber`. Laravel в своб очередь вызывает листенера `Subscribed` - `HandleSubscribedListener` в котором в зависимости от настроек среды(а именно `SHOULD_BE_VERIFIED`) определяется должен ли человек подтвердить почту для рассылки или нет, по дефолту человек НЕ должен подтверждать свою почту. `HandleSubscribedListener` использует интерфейс `ShouldQueue` который уменьшает время исполнения запроса переводя евент в джобсы которые выполняются в фоне.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Ежедневная отправка писем с курсом осуществляется через метод `withSchedule()` в `app.php` который вызывает каждый день класс `DispatchBatchedExchangeRateNotificationJobs` который в свою очередь из `CurrencyExchangeRateService` получает курс на сегодня, выбирает всех юзеров которые подтвердили свой имейл, батчит их на чанки по 500 штук и создает джоб который уже в свою очередь создает джобы на отправку самого имейла. Имейлы отправляются один раз на день в 6 00.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## Docker
+Для работы этого проекта был использоват докер композ в котором было создано 3 разных контейнера(web, db, app)
+`web` - контейнер для сервера который принимает запросы извне и форвардит их в контейнер с PHP
+`db` - контейнер для базы данных  
+`app` - контейнер для PHP обрабатывает запросы сфорвардженные с nginx'a
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Для каждого контейнера был создан отдельный `Dockerfile` нахоядщийся в папке `docker/{folderName}`. Dockerfile для базы просто пулит изображение постгреса, для nginx`a пулит изображение и копирует конфиг в папку с конфигами nginx`a в контейнере, для PHP докерфайл пулит PHP-fpm устанавливает нужзные зависимости, PHPUnit и открывает порт 9000 в контейнере.  
+Процесс билда идет следующим образом: `db -> app -> web`, каждый последующий зависит от каждого предыдущего, и после того как собрался контейнер app, выполняется скрипт `init_script.sh` в котором даются права для всех папок кроме postgres в папке storage для юзера веб сервера(nginx в нашем случае), происходит установка всех пакетов с composer.json проивзодятся миграции и запускается supevisor. Из-за этого крайне важно подождать пока контейнер полностью запуститься что-бы не получить `502 Bad Gateway`
+Для хендлинга крон тасок был добавлен супервизор который держит процессы `php-fpm`, `php artisan queue:work` и `php artisan schedule:work` активными  
+После этого приложением можно пользоваться.
+> Note: для того что-бы мочь достучаться до контейнера через gses2.app, нужно добавить маппинг локалхоста на это доменное имя в файле hosts

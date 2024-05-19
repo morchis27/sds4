@@ -26,6 +26,8 @@ services:
         working_dir: /app
         volumes:
             - ./:/app/
+            - ./docker/php/app.conf:/etc/supervisor/conf.d/app.conf
+            - ./docker/php/supervisord.conf:/etc/supervisor/supervisord.conf
         depends_on:
             - db
         networks:

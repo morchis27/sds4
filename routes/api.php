@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\EmailController;
-use App\Http\Controllers\ExchangeController;
+use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\CurrencyExchangeRateController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::get('/rate', [ExchangeController::class, 'getExchangeRate']);
+Route::get('/rate', [CurrencyExchangeRateController::class, 'getExchangeRate']);
 
-Route::post('/subscribe', [EmailController::class, 'subscribe']);
-Route::get('email/verify/{id}', [EmailController::class, 'verify'])->name('verification.verify');
+Route::post('/subscribe', [SubscriptionController::class, 'subscribe']);
+Route::get('email/verify/{id}', [SubscriptionController::class, 'verify'])->name('verification.verify');

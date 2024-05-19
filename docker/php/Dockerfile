@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libonig-dev \
     libpq-dev \
-    libzip-dev
+    libzip-dev \
+    supervisor
 
 RUN docker-php-ext-install -j$(nproc) mbstring pgsql pdo_pgsql zip
 

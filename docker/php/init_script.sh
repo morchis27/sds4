@@ -6,4 +6,4 @@ composer install
 
 php artisan migrate
 
-php-fpm
+supervisord -c /etc/supervisor/supervisord.conf
